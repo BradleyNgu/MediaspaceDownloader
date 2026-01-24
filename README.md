@@ -93,7 +93,7 @@ pip install playwright selenium
 playwright install chromium  # Install browser for Playwright
 
 # Capture M3U8 URL automatically
-python capture_m3u8.py https://mediaspace.carleton.ca/media/L5+3000A/1_3e140s7n
+python capture_m3u8.py https://mediaspace.REST_OF_URL...
 ```
 
 This will:

@@ -1,10 +1,10 @@
 #!/bin/bash
 # Quick test script for Carleton Mediaspace download
 
-URL="https://mediaspace.carleton.ca/media/L5+3000A/1_3e140s7n"
+URL="YOUR_URL_HERE"
 
-echo "Testing Mediaspace downloader with Carleton URL..."
+echo "Testing Mediaspace downloader with URL..."
 echo "URL: $URL"
 echo ""
 
-python3 mediaspace_downloader.py "$URL" "L5_3000A_video.mp4"
+python3 mediaspace_downloader.py "$URL" "YOUR_FILENAME.mp4"
