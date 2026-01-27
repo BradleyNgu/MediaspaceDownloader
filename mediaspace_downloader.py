@@ -114,14 +114,78 @@ class MediaspaceDownloader:
             print(f"Error fetching page: {e}")
             return None
     
+    def extract_kaltura_link(self, url: str, debug: bool = False) -> Optional[str]:
+        """Extract Kaltura M3U8 link from a Mediaspace URL"""
+        if debug:
+            print(f"Extracting Kaltura link from: {url}")
+        
+        # First, try to extract entry ID from URL patterns
+        entry_id = self._extract_kaltura_entry_id_from_url(url)
+        if entry_id:
+            if debug:
+                print(f"Found entry ID from URL: {entry_id}")
+            kaltura_url = self._construct_kaltura_m3u8_url(entry_id, url)
+            if kaltura_url:
+                return kaltura_url
+        
+        # If not found in URL, fetch the page and extract from HTML
+        try:
+            if debug:
+                print("Fetching page to extract Kaltura information...")
+            response = self.session.get(url, timeout=10)
+            response.raise_for_status()
+            
+            # Extract entry ID from HTML
+            entry_id = self._extract_kaltura_entry_id(response.text, url)
+            if entry_id:
+                if debug:
+                    print(f"Found entry ID from HTML: {entry_id}")
+                kaltura_url = self._construct_kaltura_m3u8_url(entry_id, url)
+                if kaltura_url:
+                    return kaltura_url
+        except Exception as e:
+            if debug:
+                print(f"Error fetching page: {e}")
+        
+        return None
+    
+    def _extract_kaltura_entry_id_from_url(self, url: str) -> Optional[str]:
+        """Extract Kaltura entry ID directly from URL patterns"""
+        # Common Mediaspace URL patterns:
+        # /media/ENTRY_ID
+        # /media/CATEGORY/ENTRY_ID
+        # /id/ENTRY_ID
+        # /entry/ENTRY_ID
+        # /video/ENTRY_ID
+        patterns = [
+            r'/media/[^/]+/([^/?&#]+)',  # /media/category/entry_id
+            r'/media/([^/?&#]+)',        # /media/entry_id
+            r'/id/([^/?&#]+)',           # /id/entry_id
+            r'/entry/([^/?&#]+)',        # /entry/entry_id
+            r'/video/([^/?&#]+)',        # /video/entry_id
+            r'entryId=([^&]+)',          # ?entryId=...
+            r'entry_id=([^&]+)',         # ?entry_id=...
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, url, re.IGNORECASE)
+            if match:
+                entry_id = match.group(1)
+                # Clean up URL encoding
+                entry_id = entry_id.replace('+', ' ').strip()
+                # Remove any trailing fragments
+                if '#' in entry_id:
+                    entry_id = entry_id.split('#')[0]
+                if entry_id and len(entry_id) > 3:  # Valid entry IDs are usually longer
+                    return entry_id
+        
+        return None
+    
     def _extract_kaltura_entry_id(self, html: str, url: str) -> Optional[str]:
         """Extract Kaltura entry ID from URL or HTML"""
         # Try to extract from URL first (common pattern: /media/ENTRY_ID)
-        url_match = re.search(r'/media/[^/]+/([^/?]+)', url)
-        if url_match:
-            entry_id = url_match.group(1)
-            # Clean up common URL encoding
-            entry_id = entry_id.replace('+', ' ')
+        entry_id = self._extract_kaltura_entry_id_from_url(url)
+        if entry_id:
             return entry_id
         
         # Try to find in HTML
@@ -130,27 +194,41 @@ class MediaspaceDownloader:
             r'"entry_id"\s*:\s*"([^"]+)"',
             r'entry_id["\']?\s*[:=]\s*["\']([^"\']+)["\']',
             r'kentryid["\']?\s*[:=]\s*["\']([^"\']+)["\']',
+            r'entryId\s*:\s*["\']([^"\']+)["\']',
+            r'entryId\s*:\s*([^,\s}]+)',
+            r'kalturaEntryId["\']?\s*[:=]\s*["\']([^"\']+)["\']',
         ]
         
         for pattern in patterns:
             matches = re.findall(pattern, html, re.IGNORECASE)
             if matches:
-                return matches[0]
+                entry_id = matches[0].strip()
+                if entry_id and len(entry_id) > 3:
+                    return entry_id
         
         return None
     
-    def _try_kaltura_api(self, entry_id: str, base_url: str) -> Optional[str]:
-        """Try to construct Kaltura API URL to get M3U8"""
-        # Common Kaltura API endpoints
+    def _construct_kaltura_m3u8_url(self, entry_id: str, base_url: str) -> Optional[str]:
+        """Construct Kaltura M3U8 URL from entry ID"""
         base_domain = urlparse(base_url).netloc
         
-        # Try common Kaltura API patterns
+        # Try to extract partner ID from base URL or use common defaults
+        partner_id = "0"  # Default partner ID
+        partner_match = re.search(r'/p/(\d+)', base_url)
+        if partner_match:
+            partner_id = partner_match.group(1)
+        
+        # Common Kaltura API patterns for M3U8
         api_patterns = [
+            f"https://{base_domain}/p/{partner_id}/sp/{partner_id}00/playManifest/entryId/{entry_id}/format/applehttp/protocol/https/a.m3u8",
+            f"https://{base_domain}/p/{partner_id}/sp/0/playManifest/entryId/{entry_id}/format/applehttp/protocol/https/a.m3u8",
             f"https://{base_domain}/p/0/sp/0/playManifest/entryId/{entry_id}/format/applehttp/protocol/https/a.m3u8",
-            f"https://{base_domain}/p/0/sp/0/playManifest/entryId/{entry_id}/format/url/protocol/https/a.m3u8",
+            f"https://cdnapisec.kaltura.com/p/{partner_id}/sp/{partner_id}00/playManifest/entryId/{entry_id}/format/applehttp/protocol/https/a.m3u8",
             f"https://cdnapisec.kaltura.com/p/0/sp/0/playManifest/entryId/{entry_id}/format/applehttp/protocol/https/a.m3u8",
+            f"https://{base_domain}/p/{partner_id}/sp/{partner_id}00/playManifest/entryId/{entry_id}/format/url/protocol/https/a.m3u8",
         ]
         
+        # Test each pattern to see which one works
         for api_url in api_patterns:
             try:
                 response = self.session.head(api_url, timeout=5, allow_redirects=True)
@@ -166,6 +244,10 @@ class MediaspaceDownloader:
                 continue
         
         return None
+    
+    def _try_kaltura_api(self, entry_id: str, base_url: str) -> Optional[str]:
+        """Try to construct Kaltura API URL to get M3U8 (legacy method, use _construct_kaltura_m3u8_url instead)"""
+        return self._construct_kaltura_m3u8_url(entry_id, base_url)
     
     def parse_m3u8(self, m3u8_url: str) -> List[str]:
         """Parse M3U8 playlist and return list of TS segment URLs"""
@@ -339,21 +421,30 @@ class MediaspaceDownloader:
         """Main method to download video from Mediaspace URL"""
         print(f"Starting download from: {url}")
         
-        # Step 1: Get M3U8 URL
-        print("\nStep 1: Finding M3U8 playlist...")
+        # Step 1: Extract Kaltura link and get M3U8 URL
+        print("\nStep 1: Extracting Kaltura link and finding M3U8 playlist...")
         
         # Check if URL is already an M3U8 URL
         if url.endswith('.m3u8') or '.m3u8?' in url or '/a.m3u8' in url:
             print("URL is already an M3U8 playlist, using directly")
             m3u8_url = url
         else:
-            m3u8_url = self.get_m3u8_url(url, debug=debug)
-            if not m3u8_url:
-                print("Error: Could not find M3U8 playlist URL")
-                print("Please provide either:")
-                print("  - A Mediaspace page URL")
-                print("  - A direct M3U8 playlist URL")
-                return False
+            # First try to extract Kaltura link specifically
+            kaltura_url = self.extract_kaltura_link(url, debug=debug)
+            if kaltura_url:
+                print(f"✓ Extracted Kaltura M3U8 link: {kaltura_url}")
+                m3u8_url = kaltura_url
+            else:
+                # Fallback to general M3U8 extraction
+                if debug:
+                    print("Kaltura extraction failed, trying general M3U8 extraction...")
+                m3u8_url = self.get_m3u8_url(url, debug=debug)
+                if not m3u8_url:
+                    print("Error: Could not find M3U8 playlist URL")
+                    print("Please provide either:")
+                    print("  - A Mediaspace page URL")
+                    print("  - A direct M3U8 playlist URL")
+                    return False
         
         print(f"Found M3U8: {m3u8_url}")
         
@@ -410,30 +501,41 @@ class MediaspaceDownloader:
 
 
 def main():
-    if len(sys.argv) < 2:
+    # Check if arguments were provided (for backward compatibility)
+    if len(sys.argv) > 1:
+        # Use command-line arguments if provided
+        args = sys.argv[1:]
+        url = args[0]
+        output_filename = None
+        debug = False
+        
+        for arg in args[1:]:
+            if arg == '--debug':
+                debug = True
+            elif not arg.startswith('--'):
+                output_filename = arg
+    else:
+        # Interactive mode - prompt user for input
+        print("=" * 60)
         print("Mediaspace Video Downloader")
-        print("\nUsage:")
-        print(f"  python {sys.argv[0]} <mediaspace_url_or_m3u8_url> [output_filename] [--debug]")
-        print("\nOptions:")
-        print("  --debug    Show detailed debugging information")
-        print("\nExample:")
-        print(f"  python {sys.argv[0]} https://mediaspace.example.com/video/12345")
-        print(f"  python {sys.argv[0]} https://mediaspace.example.com/playlist.m3u8 video.mp4")
-        print(f"  python {sys.argv[0]} https://mediaspace.example.com/video/12345 --debug")
-        print("\nNote: If M3U8 URL is not found automatically, use capture_m3u8.py:")
-        print(f"  python capture_m3u8.py <mediaspace_url>")
-        sys.exit(1)
-    
-    args = sys.argv[1:]
-    url = args[0]
-    output_filename = None
-    debug = False
-    
-    for arg in args[1:]:
-        if arg == '--debug':
-            debug = True
-        elif not arg.startswith('--'):
-            output_filename = arg
+        print("=" * 60)
+        print()
+        
+        # Get URL from user
+        url = input("Enter Mediaspace URL or M3U8 link: ").strip()
+        if not url:
+            print("Error: URL cannot be empty")
+            sys.exit(1)
+        
+        # Optionally get output filename
+        output_filename = input("Enter output filename (press Enter for auto-generated): ").strip()
+        if not output_filename:
+            output_filename = None
+        
+        # Optionally enable debug mode
+        debug_input = input("Enable debug mode? (y/N): ").strip().lower()
+        debug = debug_input in ['y', 'yes']
+        print()
     
     downloader = MediaspaceDownloader()
     success = downloader.download_video(url, output_filename, debug=debug)
