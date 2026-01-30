@@ -15,6 +15,13 @@ from typing import List, Optional
 import tempfile
 import shutil
 
+# Try to import browser capture function
+try:
+    from capture_m3u8 import capture_m3u8_url
+    CAPTURE_AVAILABLE = True
+except ImportError:
+    CAPTURE_AVAILABLE = False
+
 
 class MediaspaceDownloader:
     def __init__(self, output_dir: str = "downloads"):
@@ -146,6 +153,22 @@ class MediaspaceDownloader:
         except Exception as e:
             if debug:
                 print(f"Error fetching page: {e}")
+        
+        # If simple extraction failed, try using browser automation from capture_m3u8.py
+        if CAPTURE_AVAILABLE:
+            print("\nSimple extraction failed, trying browser automation to capture M3U8 URL...")
+            print("A browser window will open to capture the video URL.")
+            try:
+                browser_url = capture_m3u8_url(url, wait_time=15, debug=debug)
+                if browser_url:
+                    print(f"✓ Captured M3U8 URL using browser: {browser_url}")
+                    return browser_url
+            except Exception as e:
+                print(f"Browser capture failed: {e}")
+        else:
+            print("\nBrowser automation not available. Install dependencies:")
+            print("  pip install playwright selenium")
+            print("  playwright install chromium")
         
         return None
     

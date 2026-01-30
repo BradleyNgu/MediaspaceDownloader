@@ -7,6 +7,7 @@ Uses browser automation to capture M3U8 URLs from network requests
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 try:
     from selenium import webdriver
@@ -26,7 +27,7 @@ except ImportError:
     PLAYWRIGHT_AVAILABLE = False
 
 
-def capture_with_playwright(url: str, wait_time: int = 10) -> str:
+def capture_with_playwright(url: str, wait_time: int = 10) -> Optional[str]:
     """Capture M3U8 URL using Playwright (preferred method)"""
     m3u8_urls = []
     
@@ -103,7 +104,7 @@ def capture_with_playwright(url: str, wait_time: int = 10) -> str:
     return None
 
 
-def capture_with_selenium(url: str, wait_time: int = 10) -> str:
+def capture_with_selenium(url: str, wait_time: int = 10) -> Optional[str]:
     """Capture M3U8 URL using Selenium (fallback method)"""
     m3u8_urls = []
     
@@ -180,6 +181,58 @@ def capture_with_selenium(url: str, wait_time: int = 10) -> str:
     return None
 
 
+def capture_m3u8_url(url: str, wait_time: int = 15, debug: bool = False) -> Optional[str]:
+    """
+    Capture M3U8 URL from a Mediaspace page using browser automation.
+    This function can be imported and used programmatically.
+    
+    Args:
+        url: The Mediaspace page URL
+        wait_time: How long to wait for M3U8 URLs to appear (seconds)
+        debug: Enable debug output
+    
+    Returns:
+        The M3U8 URL if found, None otherwise
+    """
+    m3u8_url = None
+    
+    # Try Playwright first (better for network capture)
+    if PLAYWRIGHT_AVAILABLE:
+        if debug:
+            print("Using Playwright to capture M3U8 URL...")
+        try:
+            m3u8_url = capture_with_playwright(url, wait_time)
+            if m3u8_url:
+                return m3u8_url
+        except Exception as e:
+            if debug:
+                print(f"Playwright failed: {e}")
+            m3u8_url = None
+    
+    # Fallback to Selenium
+    if not m3u8_url and SELENIUM_AVAILABLE:
+        if debug:
+            print("Trying Selenium...")
+        try:
+            m3u8_url = capture_with_selenium(url, wait_time)
+            if m3u8_url:
+                return m3u8_url
+        except Exception as e:
+            if debug:
+                print(f"Selenium failed: {e}")
+            m3u8_url = None
+    
+    if not m3u8_url:
+        if debug:
+            if not PLAYWRIGHT_AVAILABLE and not SELENIUM_AVAILABLE:
+                print("Browser automation not available.")
+                print("Install browser automation libraries:")
+                print("  pip install playwright selenium")
+                print("  playwright install chromium")
+    
+    return m3u8_url
+
+
 def main():
     if len(sys.argv) < 2:
         print("M3U8 URL Capture Tool")
@@ -199,25 +252,7 @@ def main():
     print("=" * 60)
     print(f"URL: {url}\n")
     
-    m3u8_url = None
-    
-    # Try Playwright first (better for network capture)
-    if PLAYWRIGHT_AVAILABLE:
-        print("Using Playwright...")
-        try:
-            m3u8_url = capture_with_playwright(url)
-        except Exception as e:
-            print(f"Playwright failed: {e}")
-            m3u8_url = None
-    
-    # Fallback to Selenium
-    if not m3u8_url and SELENIUM_AVAILABLE:
-        print("\nTrying Selenium...")
-        try:
-            m3u8_url = capture_with_selenium(url)
-        except Exception as e:
-            print(f"Selenium failed: {e}")
-            m3u8_url = None
+    m3u8_url = capture_m3u8_url(url, wait_time=15, debug=True)
     
     if not m3u8_url:
         print("\n" + "=" * 60)
