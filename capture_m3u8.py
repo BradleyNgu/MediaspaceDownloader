@@ -27,13 +27,15 @@ except ImportError:
     PLAYWRIGHT_AVAILABLE = False
 
 
-def capture_with_playwright(url: str, wait_time: int = 10) -> Optional[str]:
+def capture_with_playwright(url: str, wait_time: int = 10, headless: bool = False,
+                            on_status=None) -> Optional[str]:
     """Capture M3U8 URL using Playwright (preferred method)"""
     m3u8_urls = []
+    _log = on_status or print
     
     with sync_playwright() as p:
-        print("Launching browser with Playwright...")
-        browser = p.chromium.launch(headless=False)  # Show browser so user can see it
+        _log("Launching browser with Playwright...")
+        browser = p.chromium.launch(headless=headless)
         context = browser.new_context()
         page = context.new_page()
         
@@ -42,16 +44,16 @@ def capture_with_playwright(url: str, wait_time: int = 10) -> Optional[str]:
             url_str = response.url
             if '.m3u8' in url_str:
                 m3u8_urls.append(url_str)
-                print(f"Found M3U8 URL: {url_str}")
+                _log(f"Found M3U8 URL: {url_str}")
         
         page.on("response", handle_response)
         
-        print(f"Loading page: {url}")
+        _log(f"Loading page: {url}")
         page.goto(url, wait_until="networkidle")
         
         # Try to find and click play button
         try:
-            print("Looking for play button...")
+            _log("Looking for play button...")
             # Common play button selectors
             play_selectors = [
                 'button[aria-label*="Play"]',
@@ -66,9 +68,9 @@ def capture_with_playwright(url: str, wait_time: int = 10) -> Optional[str]:
                 try:
                     play_button = page.query_selector(selector)
                     if play_button:
-                        print(f"Found play button with selector: {selector}")
+                        _log(f"Found play button with selector: {selector}")
                         play_button.click()
-                        print("Clicked play button")
+                        _log("Clicked play button")
                         break
                 except:
                     continue
@@ -78,16 +80,16 @@ def capture_with_playwright(url: str, wait_time: int = 10) -> Optional[str]:
                 video = page.query_selector('video')
                 if video:
                     video.click()
-                    print("Clicked video element")
+                    _log("Clicked video element")
             except:
                 pass
                 
         except Exception as e:
-            print(f"Could not find/click play button: {e}")
-            print("Waiting for network requests anyway...")
+            _log(f"Could not find/click play button: {e}")
+            _log("Waiting for network requests anyway...")
         
         # Wait for M3U8 URLs to appear
-        print(f"Waiting up to {wait_time} seconds for M3U8 URLs...")
+        _log(f"Waiting up to {wait_time} seconds for M3U8 URLs...")
         start_time = time.time()
         while time.time() - start_time < wait_time:
             if m3u8_urls:
@@ -104,20 +106,24 @@ def capture_with_playwright(url: str, wait_time: int = 10) -> Optional[str]:
     return None
 
 
-def capture_with_selenium(url: str, wait_time: int = 10) -> Optional[str]:
+def capture_with_selenium(url: str, wait_time: int = 10, headless: bool = False,
+                          on_status=None) -> Optional[str]:
     """Capture M3U8 URL using Selenium (fallback method)"""
     m3u8_urls = []
+    _log = on_status or print
     
     chrome_options = Options()
     chrome_options.add_argument('--enable-logging')
     chrome_options.add_argument('--v=1')
+    if headless:
+        chrome_options.add_argument('--headless=new')
     chrome_options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
     
-    print("Launching browser with Selenium...")
+    _log("Launching browser with Selenium...")
     driver = webdriver.Chrome(options=chrome_options)
     
     try:
-        print(f"Loading page: {url}")
+        _log(f"Loading page: {url}")
         driver.get(url)
         
         # Wait a bit for page to load
@@ -137,15 +143,15 @@ def capture_with_selenium(url: str, wait_time: int = 10) -> Optional[str]:
                     play_button = driver.find_element(By.CSS_SELECTOR, selector)
                     if play_button:
                         play_button.click()
-                        print("Clicked play button")
+                        _log("Clicked play button")
                         break
                 except:
                     continue
         except Exception as e:
-            print(f"Could not find/click play button: {e}")
+            _log(f"Could not find/click play button: {e}")
         
         # Get performance logs to find M3U8 URLs
-        print(f"Capturing network requests for {wait_time} seconds...")
+        _log(f"Capturing network requests for {wait_time} seconds...")
         start_time = time.time()
         while time.time() - start_time < wait_time:
             logs = driver.get_log('performance')
@@ -163,12 +169,12 @@ def capture_with_selenium(url: str, wait_time: int = 10) -> Optional[str]:
                                 response_url = params.get('response', {}).get('url', '')
                                 if '.m3u8' in response_url and response_url not in m3u8_urls:
                                     m3u8_urls.append(response_url)
-                                    print(f"Found M3U8 URL: {response_url}")
+                                    _log(f"Found M3U8 URL: {response_url}")
                             elif 'request' in params:
                                 request_url = params['request'].get('url', '')
                                 if '.m3u8' in request_url and request_url not in m3u8_urls:
                                     m3u8_urls.append(request_url)
-                                    print(f"Found M3U8 URL: {request_url}")
+                                    _log(f"Found M3U8 URL: {request_url}")
                     except:
                         pass
             time.sleep(0.5)
@@ -181,7 +187,8 @@ def capture_with_selenium(url: str, wait_time: int = 10) -> Optional[str]:
     return None
 
 
-def capture_m3u8_url(url: str, wait_time: int = 15, debug: bool = False) -> Optional[str]:
+def capture_m3u8_url(url: str, wait_time: int = 15, debug: bool = False,
+                     headless: bool = False, on_status=None) -> Optional[str]:
     """
     Capture M3U8 URL from a Mediaspace page using browser automation.
     This function can be imported and used programmatically.
@@ -190,45 +197,44 @@ def capture_m3u8_url(url: str, wait_time: int = 15, debug: bool = False) -> Opti
         url: The Mediaspace page URL
         wait_time: How long to wait for M3U8 URLs to appear (seconds)
         debug: Enable debug output
+        headless: Run browsers in headless mode (required for server use)
+        on_status: Optional callback(msg: str) for progress messages.
+                   Falls back to print() when debug=True and on_status is None.
     
     Returns:
         The M3U8 URL if found, None otherwise
     """
+    _log = on_status or (print if debug else lambda _: None)
     m3u8_url = None
     
     # Try Playwright first (better for network capture)
     if PLAYWRIGHT_AVAILABLE:
-        if debug:
-            print("Using Playwright to capture M3U8 URL...")
+        _log("Using Playwright to capture M3U8 URL...")
         try:
-            m3u8_url = capture_with_playwright(url, wait_time)
+            m3u8_url = capture_with_playwright(url, wait_time, headless=headless,
+                                               on_status=_log)
             if m3u8_url:
                 return m3u8_url
         except Exception as e:
-            if debug:
-                print(f"Playwright failed: {e}")
+            _log(f"Playwright failed: {e}")
             m3u8_url = None
     
     # Fallback to Selenium
     if not m3u8_url and SELENIUM_AVAILABLE:
-        if debug:
-            print("Trying Selenium...")
+        _log("Trying Selenium...")
         try:
-            m3u8_url = capture_with_selenium(url, wait_time)
+            m3u8_url = capture_with_selenium(url, wait_time, headless=headless,
+                                             on_status=_log)
             if m3u8_url:
                 return m3u8_url
         except Exception as e:
-            if debug:
-                print(f"Selenium failed: {e}")
+            _log(f"Selenium failed: {e}")
             m3u8_url = None
     
     if not m3u8_url:
-        if debug:
-            if not PLAYWRIGHT_AVAILABLE and not SELENIUM_AVAILABLE:
-                print("Browser automation not available.")
-                print("Install browser automation libraries:")
-                print("  pip install playwright selenium")
-                print("  playwright install chromium")
+        if not PLAYWRIGHT_AVAILABLE and not SELENIUM_AVAILABLE:
+            _log("Browser automation not available.")
+            _log("Install: pip install playwright selenium && playwright install chromium")
     
     return m3u8_url
 
