@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mediaspace Downloader</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface-hover: #242836;
+      --border: #2e3345;
+      --text: #e4e6ed;
+      --text-muted: #8b8fa3;
+      --accent: #6c63ff;
+      --accent-hover: #5a52e0;
+      --accent-glow: rgba(108,99,255,.25);
+      --success: #34d399;
+      --error: #f87171;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 560px;
+      padding: 24px;
+    }
+
+    /* ── Header ──────────────────────── */
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -.02em;
+      margin-bottom: 6px;
+    }
+    .header p {
+      color: var(--text-muted);
+      font-size: .95rem;
+    }
+
+    /* ── Card ────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+    }
+
+    /* ── Input group ─────────────────── */
+    .input-group {
+      margin-bottom: 16px;
+    }
+    .input-group label {
+      display: block;
+      font-size: .82rem;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    .input-group input {
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: .95rem;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .input-group input::placeholder { color: var(--text-muted); opacity: .6; }
+    .input-group input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    /* ── Button ──────────────────────── */
+    .btn {
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s, transform .1s;
+      margin-top: 8px;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-primary:active:not(:disabled) { transform: scale(.98); }
+    .btn-primary:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: #0f1117;
+    }
+    .btn-success:hover { filter: brightness(1.1); }
+
+    /* ── Progress area ───────────────── */
+    .progress-area {
+      margin-top: 24px;
+      display: none;
+    }
+    .progress-area.visible { display: block; }
+
+    .status-text {
+      font-size: .9rem;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      min-height: 1.3em;
+    }
+
+    .progress-bar-track {
+      width: 100%;
+      height: 8px;
+      background: var(--bg);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), #a78bfa);
+      border-radius: 4px;
+      transition: width .3s ease;
+    }
+    .progress-bar-fill.done {
+      background: var(--success);
+    }
+
+    .percent-text {
+      text-align: right;
+      font-size: .8rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* ── Result area ─────────────────── */
+    .result {
+      margin-top: 18px;
+      display: none;
+    }
+    .result.visible { display: block; }
+
+    .error-text {
+      color: var(--error);
+      font-size: .9rem;
+      margin-top: 18px;
+      display: none;
+    }
+    .error-text.visible { display: block; }
+
+    /* ── Log area ────────────────────── */
+    .log-toggle {
+      margin-top: 16px;
+      text-align: center;
+    }
+    .log-toggle button {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: .82rem;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .log-toggle button:hover { color: var(--text); }
+
+    .log-area {
+      margin-top: 10px;
+      max-height: 180px;
+      overflow-y: auto;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: .78rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      display: none;
+    }
+    .log-area.visible { display: block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Mediaspace Downloader</h1>
+      <p>Paste a Mediaspace or M3U8 link to download the video</p>
+    </div>
+
+    <div class="card">
+      <div class="input-group">
+        <label for="url">Video URL</label>
+        <input
+          id="url"
+          type="url"
+          placeholder="https://mediaspace.example.edu/media/..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
+
+      <div class="input-group">
+        <label for="filename">Filename <span style="opacity:.5">(optional)</span></label>
+        <input id="filename" type="text" placeholder="lecture-01.mp4" />
+      </div>
+
+      <button id="downloadBtn" class="btn btn-primary" onclick="startDownload()">
+        Download
+      </button>
+
+      <!-- Progress -->
+      <div class="progress-area" id="progressArea">
+        <div class="status-text" id="statusText"></div>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="progressFill"></div>
+        </div>
+        <div class="percent-text" id="percentText"></div>
+      </div>
+
+      <!-- Error -->
+      <div class="error-text" id="errorText"></div>
+
+      <!-- Result -->
+      <div class="result" id="resultArea">
+        <a id="downloadLink" class="btn btn-success" href="#" download>
+          Save File
+        </a>
+      </div>
+
+      <!-- Log -->
+      <div class="log-toggle" id="logToggle" style="display:none">
+        <button onclick="toggleLog()">Show log</button>
+      </div>
+      <div class="log-area" id="logArea"></div>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+
+    function log(msg) {
+      const el = $('logArea');
+      el.textContent += msg + '\n';
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function reset() {
+      $('progressArea').classList.remove('visible');
+      $('resultArea').classList.remove('visible');
+      $('errorText').classList.remove('visible');
+      $('logArea').classList.remove('visible');
+      $('logArea').textContent = '';
+      $('logToggle').style.display = 'none';
+      $('progressFill').style.width = '0%';
+      $('progressFill').classList.remove('done');
+      $('percentText').textContent = '';
+      $('statusText').textContent = '';
+    }
+
+    function toggleLog() {
+      $('logArea').classList.toggle('visible');
+      const btn = $('logToggle').querySelector('button');
+      btn.textContent = $('logArea').classList.contains('visible') ? 'Hide log' : 'Show log';
+    }
+
+    async function startDownload() {
+      const url = $('url').value.trim();
+      if (!url) { $('url').focus(); return; }
+
+      reset();
+      const btn = $('downloadBtn');
+      btn.disabled = true;
+      btn.textContent = 'Starting…';
+      $('progressArea').classList.add('visible');
+      $('logToggle').style.display = 'block';
+      $('statusText').textContent = 'Starting download…';
+
+      try {
+        const res = await fetch('/api/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, filename: $('filename').value.trim() }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Request failed');
+        }
+
+        const { job_id } = await res.json();
+
+        const es = new EventSource(`/api/progress/${job_id}`);
+
+        es.addEventListener('status', e => {
+          const d = JSON.parse(e.data);
+          $('statusText').textContent = d.message;
+          log(`[${d.phase}] ${d.message}`);
+        });
+
+        es.addEventListener('progress', e => {
+          const d = JSON.parse(e.data);
+          $('progressFill').style.width = d.percent + '%';
+          $('percentText').textContent = d.percent + '%';
+          $('statusText').textContent = d.message;
+          log(d.message);
+        });
+
+        es.addEventListener('complete', e => {
+          const d = JSON.parse(e.data);
+          es.close();
+          $('progressFill').style.width = '100%';
+          $('progressFill').classList.add('done');
+          $('percentText').textContent = '100%';
+          $('statusText').textContent = d.message;
+          log('✓ ' + d.message);
+
+          const link = $('downloadLink');
+          link.href = `/api/file/${encodeURIComponent(d.filename)}`;
+          link.download = d.filename;
+          link.textContent = `Save ${d.filename}`;
+          $('resultArea').classList.add('visible');
+
+          btn.disabled = false;
+          btn.textContent = 'Download Another';
+        });
+
+        es.addEventListener('error', e => {
+          try {
+            const d = JSON.parse(e.data);
+            $('errorText').textContent = d.message;
+            $('errorText').classList.add('visible');
+            log('✗ ' + d.message);
+          } catch {
+            $('errorText').textContent = 'Connection lost.';
+            $('errorText').classList.add('visible');
+          }
+          es.close();
+          btn.disabled = false;
+          btn.textContent = 'Retry';
+        });
+
+      } catch (err) {
+        $('errorText').textContent = err.message;
+        $('errorText').classList.add('visible');
+        btn.disabled = false;
+        btn.textContent = 'Retry';
+      }
+    }
+
+    $('url').addEventListener('keydown', e => {
+      if (e.key === 'Enter') startDownload();
+    });
+  </script>
+</body>
+</html>
