@@ -14,8 +14,15 @@ Mediaspace typically serves videos using HLS (HTTP Live Streaming), which breaks
 
 ## Requirements
 
-- Python 3.7+
-- ffmpeg (for video conversion)
+- Python 3.7+ (Python 3.10+ recommended)
+- `pip` (comes with Python)
+- ffmpeg (required for MP4 conversion)
+- Python packages in `requirements.txt`:
+  - `requests`
+  - `playwright`
+  - `selenium`
+  - `flask`
+  - `gunicorn`
 
 ### Installing ffmpeg
 
@@ -37,21 +44,40 @@ choco install ffmpeg
 
 ## Installation
 
-1. Install Python dependencies:
+1. (Optional but recommended) Create and activate a virtual environment:
 ```bash
-pip install -r requirements.txt
+python -m venv .venv
 ```
 
-2. Install browser for Playwright (for automatic M3U8 capture):
+**Windows (PowerShell):**
 ```bash
-playwright install chromium
+.\.venv\Scripts\Activate.ps1
 ```
 
-Note: If you only want to use direct M3U8 URLs, you can skip the Playwright installation.
+**macOS/Linux:**
+```bash
+source .venv/bin/activate
+```
 
-## Usage
+2. Install all Python dependencies:
+```bash
+python -m pip install -r requirements.txt
+```
 
-### Basic Usage
+3. Install Playwright browser binaries (needed for automatic M3U8 capture):
+```bash
+python -m playwright install chromium
+```
+
+Notes:
+- If you only use direct M3U8 URLs, browser automation is optional.
+- `ffmpeg` is still required to produce MP4 output.
+
+## How to Run
+
+### CLI Downloader (main tool)
+
+Basic command:
 
 ```bash
 python mediaspace_downloader.py <URL>
@@ -61,7 +87,7 @@ Where `<URL>` can be:
 - A Mediaspace page URL (the tool will automatically find the M3U8 playlist)
 - A direct M3U8 playlist URL
 
-### Examples
+Examples:
 
 ```bash
 # Download from Mediaspace page
@@ -77,6 +103,26 @@ python mediaspace_downloader.py https://mediaspace.example.com/video/12345 my_vi
 python mediaspace_downloader.py https://mediaspace.example.com/video/12345 --debug
 ```
 
+### Browser M3U8 Capture Helper
+
+Use this when the M3U8 URL is loaded only after video playback starts:
+
+```bash
+python capture_m3u8.py https://mediaspace.REST_OF_URL...
+```
+
+### Web App (Flask UI)
+
+Run the local web interface:
+
+```bash
+python app.py
+```
+
+Then open:
+
+`http://127.0.0.1:5000`
+
 ### Output
 
 Downloaded videos are saved in the `downloads/` directory by default.
@@ -89,8 +135,8 @@ If the M3U8 URL is loaded dynamically when the video starts playing, use the bro
 
 ```bash
 # Install browser automation dependencies (first time only)
-pip install playwright selenium
-playwright install chromium  # Install browser for Playwright
+python -m pip install -r requirements.txt
+python -m playwright install chromium  # Install browser for Playwright
 
 # Capture M3U8 URL automatically
 python capture_m3u8.py https://mediaspace.REST_OF_URL...
